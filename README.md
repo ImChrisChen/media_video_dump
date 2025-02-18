@@ -15,6 +15,7 @@
 
 - Docker
 - Docker Compose
+- ffmpeg
 
 ### 快速开始
 

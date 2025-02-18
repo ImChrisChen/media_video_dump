@@ -69,8 +69,8 @@ class MediaTransferService:
         except Exception as e:
             raise Exception(f"Failed to get formats: {str(e)}")
 
-    def download(self, url: str, output_path: str = None, format_id: Optional[str] = None, max_filename_length: int = 150) -> Dict[str, Any]:
-        """下载视频，可以指定格式ID"""
+    def download(self, url: str, output_path: str = None, format_id: Optional[str] = None, max_filename_length: int = 150, proxy: Optional[str] = None) -> Dict[str, Any]:
+        """下载视频，可以指定格式ID和代理"""
         if output_path is None:
             output_path = os.path.join(self.download_dir, '%(upload_date).100s_%(id)s_%(resolution)s_%(title)s.%(ext)s')
 
@@ -81,12 +81,16 @@ class MediaTransferService:
             'overwrites': True,  # 允许覆盖已存在的文件
         }
 
+        # 如果提供了代理，添加到选项中
+        if proxy:
+            ydl_opts['proxy'] = proxy
+
         # 如果指定了格式ID，添加到选项/api/pc/billing_portal中
         if format_id:
             ydl_opts['format'] = format_id
         else:
             # ydl_opts['format'] = 'bv[ext=mp4]+ba[ext=m4a]'  # 默认下载最佳质量
-            ydl_opts['format'] = 'bv[ext=mp4]'  # 默认下载最佳质量
+            ydl_opts['format'] = 'bv[ext=mp4]+ba[ext=m4a]'  # 默认下载最佳质量
             # ydl_opts['format'] = 'best'  # 默认下载最佳质量
 
         try:
@@ -146,6 +150,7 @@ class DownloadRequest(BaseModel):
     """
     url: str
     format_id: Optional[str] = None
+    proxy: Optional[str] = None  # 例如: "socks5://127.0.0.1:1080" 或 "http://127.0.0.1:1087"
 
 
 class GetVideoResolutionsRequest(BaseModel):
@@ -171,7 +176,12 @@ async def download_video(request: DownloadRequest):
     """下载指定格式的视频"""
     try:
         # 添加文件名长度限制处理
-        result = media_service.download(request.url, format_id=request.format_id, max_filename_length=100)
+        result = media_service.download(
+            request.url,
+            format_id=request.format_id,
+            max_filename_length=100,
+            proxy=request.proxy
+        )
         return {
             "status": "success",
             "message": "Video downloaded successfully",
