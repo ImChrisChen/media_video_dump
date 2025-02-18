@@ -1,6 +1,7 @@
 import json
 from math import inf
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
 import uvicorn
 import yt_dlp
 import os
@@ -121,8 +122,13 @@ app = FastAPI(
     version="0.1.0"
 )
 
-# 创建 MediaTransferService 实例
+# 定义下载目录
 DOWNLOAD_DIR = os.path.join(os.path.dirname(__file__), "downloads")
+
+# 挂载下载目录为静态文件服务
+app.mount("/downloads", StaticFiles(directory=DOWNLOAD_DIR), name="downloads")
+
+# 创建 MediaTransferService 实例
 media_service = MediaTransferService(DOWNLOAD_DIR)
 
 
