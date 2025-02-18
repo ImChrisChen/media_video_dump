@@ -72,19 +72,22 @@ class MediaTransferService:
     def download(self, url: str, output_path: str = None, format_id: Optional[str] = None, max_filename_length: int = 150) -> Dict[str, Any]:
         """下载视频，可以指定格式ID"""
         if output_path is None:
-            output_path = os.path.join(self.download_dir, '%(title)s.%(ext)s')
+            output_path = os.path.join(self.download_dir, '%(upload_date).100s_%(id)s_%(resolution)s_%(title)s.%(ext)s')
 
         # 设置 yt-dlp 选项
         ydl_opts = {
             'outtmpl': output_path,  # 输出文件名模板
             'noplaylist': True,  # 如果 URL 是播放列表，只下载单个视频
+            'overwrites': True,  # 允许覆盖已存在的文件
         }
 
         # 如果指定了格式ID，添加到选项/api/pc/billing_portal中
         if format_id:
             ydl_opts['format'] = format_id
         else:
-            ydl_opts['format'] = 'best'  # 默认下载最佳质量
+            # ydl_opts['format'] = 'bv[ext=mp4]+ba[ext=m4a]'  # 默认下载最佳质量
+            ydl_opts['format'] = 'bv[ext=mp4]'  # 默认下载最佳质量
+            # ydl_opts['format'] = 'best'  # 默认下载最佳质量
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -99,7 +102,7 @@ class MediaTransferService:
                 # 添加文件名长度限制处理
                 if len(video_title) > max_filename_length:
                     video_title = video_title[:max_filename_length]
-                downloaded_file = os.path.join(self.download_dir, f"{video_title}.{video_ext}")
+                downloaded_file = os.path.join(self.download_dir, f"{info.get('upload_date')}_{info.get('id')}_{info.get('resolution')}_{video_title}.{video_ext}")
 
                 return {
                     "title": video_title,
