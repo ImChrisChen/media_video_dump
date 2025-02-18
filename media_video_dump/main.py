@@ -40,8 +40,8 @@ class MediaTransferService:
     def get_available_formats(self, url: str) -> List[Dict[str, Any]]:
         """获取视频可用的格式列表"""
         ydl_opts = {
-            'quiet': True,
-            'no_warnings': True,
+            'quiet': False,
+            'no_warnings': False,
         }
 
         try:
@@ -69,6 +69,13 @@ class MediaTransferService:
         except Exception as e:
             raise Exception(f"Failed to get formats: {str(e)}")
 
+    def _progress_hook(self, d):
+        if d['status'] == 'downloading':
+            percent = (d['downloaded_bytes'] / d['total_bytes']) * 100 if d['total_bytes'] else 0
+            print(f"Downloading {percent:.2f}% at {d['_speed_str']} ETA {d['_eta_str']}")
+        elif d['status'] == 'finished':
+            print('Download finished, now post-processing...')
+
     def download(self, url: str, output_path: str = None, format_id: Optional[str] = None, max_filename_length: int = 150, proxy: Optional[str] = None) -> Dict[str, Any]:
         """下载视频，可以指定格式ID和代理"""
         if output_path is None:
@@ -79,6 +86,10 @@ class MediaTransferService:
             'outtmpl': output_path,  # 输出文件名模板
             'noplaylist': True,  # 如果 URL 是播放列表，只下载单个视频
             'overwrites': True,  # 允许覆盖已存在的文件
+            # 确保显示进度条
+            'quiet': False,
+            'no_warnings': False,
+            'progress_hooks': [self._progress_hook],  # 添加进度钩子函数
         }
 
         # 如果提供了代理，添加到选项中
