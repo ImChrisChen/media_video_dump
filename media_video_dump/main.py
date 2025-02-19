@@ -47,23 +47,20 @@ class MediaTransferService:
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
-                print('info:', info)
                 formats = []
 
                 for f in info['formats']:
-                    print('f:', f)
-                    # temp1.formats.filter(item => item.ext === 'mp4').filter(item => item.format_note).map(item => item.format_note)
-                    # 提取有用的格式信息
+                    format_info = {
+                        'format_id': f.get('format_id'),
+                        'ext': f.get('ext'),
+                        'resolution': f.get('resolution', 'unknown'),
+                        'filesize': f.get('filesize', 'unknown'),
+                        'format_note': f.get('format_note', ''),
+                        'fps': f.get('fps'),
+                    }
+                    
                     if f.get('ext') == 'mp4' and f.get('format_note'):
-                        format_info = {
-                            'format_id': f.get('format_id'),
-                            'ext': f.get('ext'),
-                            'resolution': f.get('resolution', 'unknown'),
-                            'filesize': f.get('filesize', 'unknown'),
-                            'format_note': f.get('format_note', ''),
-                            'fps': f.get('fps'),
-                        }
-                    formats.append(format_info)
+                        formats.append(format_info)
 
                 return formats
         except Exception as e:
@@ -71,13 +68,15 @@ class MediaTransferService:
 
     def _progress_hook(self, d):
         if d['status'] == 'downloading':
+            # 0-100
             percent = (d['downloaded_bytes'] / d['total_bytes']) * 100 if d['total_bytes'] else 0
-            print(f"Downloading {percent:.2f}% at {d['_speed_str']} ETA {d['_eta_str']}")
+            print('video download percent:', percent)
+            # print(f"Downloading {percent:.2f}% at {d['_speed_str']} ETA {d['_eta_str']}")
         elif d['status'] == 'finished':
             print('Download finished, now post-processing...')
 
-    def download(self, url: str, output_path: str = None, format_id: Optional[str] = None, max_filename_length: int = 150, proxy: Optional[str] = None) -> Dict[str, Any]:
-        """下载视频，可以指定格式ID和代理"""
+    def download(self, url: str, output_path: str = None, format_id: Optional[str] = None, resolution: Optional[str] = None, max_filename_length: int = 150, proxy: Optional[str] = None) -> Dict[str, Any]:
+        """下载视频，可以指定格式ID、分辨率和代理"""
         if output_path is None:
             output_path = os.path.join(self.download_dir, '%(upload_date).100s_%(id)s_%(resolution)s_%(title)s.%(ext)s')
 
@@ -96,13 +95,13 @@ class MediaTransferService:
         if proxy:
             ydl_opts['proxy'] = proxy
 
-        # 如果指定了格式ID，添加到选项/api/pc/billing_portal中
-        if format_id:
+        # 根据分辨率或格式ID选择下载格式
+        if resolution:
+            ydl_opts['format'] = f'bv[height={resolution.split("x")[1]}][ext=mp4]+ba[ext=m4a]'
+        elif format_id:
             ydl_opts['format'] = format_id
         else:
-            # ydl_opts['format'] = 'bv[ext=mp4]+ba[ext=m4a]'  # 默认下载最佳质量
-            ydl_opts['format'] = 'bv[ext=mp4]+ba[ext=m4a]'  # 默认下载最佳质量
-            # ydl_opts['format'] = 'best'  # 默认下载最佳质量
+            ydl_opts['format'] = 'bv[ext=mp4]+ba[ext=m4a]'
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -133,6 +132,18 @@ class MediaTransferService:
         except Exception as e:
             raise Exception(f"Download failed: {str(e)}")
 
+    def get_resolution_list(self, url: str) -> List[str]:
+        """获取视频可用的分辨率列表"""
+        try:
+            formats = self.get_available_formats(url)
+            # 提取所有不重复的分辨率
+            resolutions = list(set(f['resolution'] for f in formats if f['resolution'] != 'unknown'))
+            # 按照分辨率数值排序（从高到低）
+            resolutions.sort(key=lambda x: int(x.split('x')[1]) if 'x' in x else 0, reverse=True)
+            return resolutions
+        except Exception as e:
+            raise Exception(f"获取分辨率列表失败: {str(e)}")
+
 
 app = FastAPI(
     title="Media Video Dump",
@@ -161,7 +172,8 @@ class DownloadRequest(BaseModel):
     """
     url: str
     format_id: Optional[str] = None
-    proxy: Optional[str] = None  # 例如: "socks5://127.0.0.1:1080" 或 "http://127.0.0.1:1087"
+    resolution: Optional[str] = None  # 新增分辨率参数
+    proxy: Optional[str] = None
 
 
 class GetVideoResolutionsRequest(BaseModel):
@@ -182,14 +194,28 @@ async def get_video_resolutions(request: GetVideoResolutionsRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/resolution_list")
+async def get_video_resolution_list(request: GetVideoResolutionsRequest):
+    """获取视频可用的分辨率列表"""
+    try:
+        resolutions = media_service.get_resolution_list(request.url)
+        return {
+            "status": "success",
+            "message": "获取分辨率列表成功",
+            "data": resolutions
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/download")
 async def download_video(request: DownloadRequest):
-    """下载指定格式的视频"""
+    """下载指定格式或分辨率的视频"""
     try:
-        # 添加文件名长度限制处理
         result = media_service.download(
             request.url,
             format_id=request.format_id,
+            resolution=request.resolution,
             max_filename_length=100,
             proxy=request.proxy
         )
