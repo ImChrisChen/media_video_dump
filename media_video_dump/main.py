@@ -1,11 +1,9 @@
 import os
-from typing import Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 import uvicorn
-from pydantic import BaseModel
-
 from services.media_transfer import MediaTransferService
+import schemas
 
 app = FastAPI(
     title="Media Video Dump",
@@ -23,29 +21,8 @@ app.mount("/downloads", StaticFiles(directory=DOWNLOAD_DIR), name="downloads")
 media_service = MediaTransferService(DOWNLOAD_DIR)
 
 
-class DownloadRequest(BaseModel):
-    """
-    example url:
-    video_url = 'https://www.youtube.com/watch?v=oJx9DpXtmAE'
-    video_url = 'https://www.tiktok.com/@hakata4k.official/video/7468249703516261650'
-    video_url = 'https://cn.pornhub.com/view_video.php?viewkey=6571c740e2b69'
-    video_url = 'https://www.facebook.com/watch?v=2973003642996553'
-    video_url = 'https://www.instagram.com/p/DF9Z3YsMLiu/'
-    """
-
-    url: str
-    format_id: Optional[str] = None
-    resolution: Optional[str] = None
-    proxy: Optional[str] = None
-
-
-class GetVideoResolutionsRequest(BaseModel):
-    url: str
-    proxy: Optional[str] = None
-
-
 @app.post("/resolution_list")
-async def get_video_resolution_list(request: GetVideoResolutionsRequest):
+async def get_video_resolution_list(request: schemas.GetVideoResolutionsRequest):
     """获取视频可用的分辨率列表"""
     try:
         resolutions = media_service.get_resolution_list(
@@ -61,7 +38,7 @@ async def get_video_resolution_list(request: GetVideoResolutionsRequest):
 
 
 @app.post("/download")
-async def download_video(request: DownloadRequest):
+async def download_video(request: schemas.DownloadRequest):
     """下载指定格式或分辨率的视频"""
     try:
         result = media_service.download(
