@@ -39,35 +39,6 @@ class MediaTransferService:
         with open(self.log_file, "a", encoding="utf-8") as f:
             f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
 
-    def get_available_formats(self, url: str) -> List[Dict[str, Any]]:
-        """获取视频可用的格式列表"""
-        ydl_opts = {
-            "quiet": False,
-            "no_warnings": False,
-        }
-
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=False)
-                formats = []
-
-                for f in info["formats"]:
-                    format_info = {
-                        "format_id": f.get("format_id"),
-                        "ext": f.get("ext"),
-                        "resolution": f.get("resolution", "unknown"),
-                        "filesize": f.get("filesize", "unknown"),
-                        "format_note": f.get("format_note", ""),
-                        "fps": f.get("fps"),
-                    }
-
-                    if f.get("ext") == "mp4" and f.get("format_note"):
-                        formats.append(format_info)
-
-                return formats
-        except Exception as e:
-            raise Exception(f"Failed to get formats: {str(e)}")
-
     def _progress_hook(self, d):
         """处理下载进度回调"""
         if d["status"] == "downloading":
@@ -109,6 +80,9 @@ class MediaTransferService:
             "quiet": False,
             "no_warnings": False,
             "progress_hooks": [self._progress_hook],  # 添加进度钩子函数
+            "http_headers": {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            },
         }
 
         # 如果提供了代理，添加到选项中
@@ -123,7 +97,12 @@ class MediaTransferService:
         elif format_id:
             ydl_opts["format"] = format_id
         else:
-            ydl_opts["format"] = "bv[ext=mp4]+ba[ext=m4a]"
+            # 不设置，默认下载最高质量的视频和音频
+            # ydl_opts["format"] = "bv[ext=mp4]+ba[ext=m4a]"
+            # ydl_opts["format"] = "best"   # 实测最低质量
+            pass
+
+        print("ydl_opts:", ydl_opts)
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -157,20 +136,51 @@ class MediaTransferService:
         except Exception as e:
             raise Exception(f"Download failed: {str(e)}")
 
-    def get_resolution_list(self, url: str) -> List[str]:
-        """获取视频可用的分辨率列表"""
+    """
+    获取视频可用的分辨率列表
+    """
+
+    def get_resolution_list(self, url: str, proxy: Optional[str] = None) -> List[str]:
         try:
-            formats = self.get_available_formats(url)
-            # 提取所有不重复的分辨率
-            resolutions = list(
-                set(f["resolution"] for f in formats if f["resolution"] != "unknown")
-            )
-            # 按照分辨率数值排序（从高到低）
-            resolutions.sort(
-                key=lambda x: int(x.split("x")[1]) if "x" in x else 0, reverse=True
-            )
-            return resolutions
+            """获取视频可用的格式列表"""
+            ydl_opts = {
+                "quiet": False,
+                "no_warnings": False,
+                "http_headers": {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+                },
+            }
+
+            # 如果提供了代理，添加到选项中
+            if proxy:
+                ydl_opts["proxy"] = proxy
+
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                formats = []
+                for f in info["formats"]:
+                    format_info = {
+                        "format_id": f.get("format_id"),
+                        "ext": f.get("ext"),
+                        "resolution": f.get("resolution", None),
+                        "filesize": f.get("filesize", None),
+                        "fps": f.get("fps", None),
+                    }
+
+                    if f.get("ext") == "mp4" and f.get("resolution") is not None:
+                        formats.append(format_info)
+
+                print("formats:", formats)
+
+                # 提取所有不重复的分辨率
+                resolutions = list(set(f["resolution"] for f in formats))
+                # 按照分辨率数值排序（从高到低）
+                resolutions.sort(
+                    key=lambda x: int(x.split("x")[1]) if "x" in x else 0, reverse=True
+                )
+                return resolutions
         except Exception as e:
+            print("e:", e)
             raise Exception(f"获取分辨率列表失败: {str(e)}")
 
 
@@ -193,7 +203,7 @@ media_service = MediaTransferService(DOWNLOAD_DIR)
 class DownloadRequest(BaseModel):
     """
     example url:
-    video_url = 'https://www.youtube.com/watch?v=oJx9DpXtmAE&list=PLI5YfMzCfRtZ4bHJJDl_IJejxMwZFiBwz'
+    video_url = 'https://www.youtube.com/watch?v=oJx9DpXtmAE'
     video_url = 'https://www.tiktok.com/@hakata4k.official/video/7468249703516261650'
     video_url = 'https://cn.pornhub.com/view_video.php?viewkey=6571c740e2b69'
     video_url = 'https://www.facebook.com/watch?v=2973003642996553'
@@ -203,35 +213,24 @@ class DownloadRequest(BaseModel):
     url: str
     format_id: Optional[str] = None
     resolution: Optional[str] = None  # 新增分辨率参数
-    proxy: Optional[str] = None
+    proxy: Optional[str] = None  # socks5://127.0.0.1:7890
 
 
 class GetVideoResolutionsRequest(BaseModel):
     url: str
-
-
-@app.post("/video_resolutions")
-async def get_video_resolutions(request: GetVideoResolutionsRequest):
-    """获取视频可用的分辨率列表"""
-    try:
-        formats = media_service.get_available_formats(request.url)
-        return {
-            "status": "success",
-            "message": "Available formats retrieved successfully",
-            "data": formats,
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    proxy: Optional[str] = None  # socks5://127.0.0.1:7890
 
 
 @app.post("/resolution_list")
 async def get_video_resolution_list(request: GetVideoResolutionsRequest):
     """获取视频可用的分辨率列表"""
     try:
-        resolutions = media_service.get_resolution_list(request.url)
+        resolutions = media_service.get_resolution_list(
+            request.url, proxy=request.proxy
+        )
         return {
             "status": "success",
-            "message": "获取分辨率列表成功",
+            "message": "Get video resolutions list successfully",
             "data": resolutions,
         }
     except Exception as e:
