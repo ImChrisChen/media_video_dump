@@ -29,3 +29,10 @@ class GetVideoListRequest(BaseModel):
 
     url: str
     proxy: Optional[str] = None
+
+
+class GetVideoDetailsRequest(BaseModel):
+    """获取视频详情的请求模型，包括标题、时长、分辨率、封面和预览视频等"""
+
+    url: str
+    proxy: Optional[str] = None

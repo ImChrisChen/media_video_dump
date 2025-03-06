@@ -217,3 +217,125 @@ class MediaTransferService:
         except Exception as e:
             print("e:", e)
             raise Exception(f"Get resolution list failed: {str(e)}")
+
+    def get_video_details(
+        self, url: str, proxy: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """获取视频的详细信息
+
+        Args:
+            url: 视频网址
+            proxy: 代理地址（可选）
+
+        Returns:
+            包含视频详细信息的字典，包括标题、时长、分辨率、封面、预览视频等
+        """
+        try:
+            # 获取详细视频信息
+            ydl_opts = {
+                "quiet": False,
+                "no_warnings": False,
+                "http_headers": {"User-Agent": random.choice(self.user_agents)},
+            }
+
+            if proxy:
+                ydl_opts["proxy"] = proxy
+
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+
+                # 获取所有可用格式
+                formats = []
+                for f in info.get("formats", []):
+                    if f.get("ext") == "mp4" and f.get("resolution") is not None:
+                        format_info = {
+                            "format_id": f.get("format_id"),
+                            "ext": f.get("ext"),
+                            "resolution": f.get("resolution"),
+                            "filesize": f.get("filesize"),
+                            "fps": f.get("fps"),
+                            "vcodec": f.get("vcodec"),
+                            "acodec": f.get("acodec"),
+                            "url": f.get("url"),  # 视频直链
+                        }
+                        formats.append(format_info)
+
+                # 按分辨率排序
+                formats.sort(
+                    key=lambda x: (
+                        int(x["resolution"].split("x")[1])
+                        if "x" in x.get("resolution", "")
+                        else 0
+                    ),
+                    reverse=True,
+                )
+
+                # 获取分辨率列表
+                resolutions = list(
+                    set(f["resolution"] for f in formats if f.get("resolution"))
+                )
+                resolutions.sort(
+                    key=lambda x: int(x.split("x")[1]) if "x" in x else 0, reverse=True
+                )
+
+                # 获取预览视频（如果有）
+                preview_video = None
+                for f in info.get("formats", []):
+                    # 尝试找到低分辨率的预览视频
+                    if (
+                        f.get("ext") == "mp4"
+                        and f.get("resolution") is not None
+                        and "x" in f.get("resolution", "")
+                        and int(f["resolution"].split("x")[1]) <= 360
+                    ):
+                        preview_video = {
+                            "url": f.get("url"),
+                            "resolution": f.get("resolution"),
+                            "filesize": f.get("filesize"),
+                        }
+                        break
+
+                # 记录日志
+                domain = urlparse(url).netloc
+                date = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                os.makedirs(f"./logs/{domain}/video_details", exist_ok=True)
+                file_name = (
+                    f"./logs/{domain}/video_details/{date}_{info.get('id')}.json"
+                )
+                with open(file_name, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(info, ensure_ascii=False) + "\n")
+
+                # 构建返回结果
+                result = {
+                    "id": info.get("id"),
+                    "title": info.get("title"),
+                    "description": info.get("description"),
+                    "duration": info.get("duration"),  # 秒
+                    "duration_string": info.get("duration_string"),  # 格式化的时长
+                    "view_count": info.get("view_count"),
+                    "like_count": info.get("like_count"),
+                    "comment_count": info.get("comment_count"),
+                    "upload_date": info.get("upload_date"),
+                    "uploader": info.get("uploader"),
+                    "uploader_id": info.get("uploader_id"),
+                    "uploader_url": info.get("uploader_url"),
+                    "channel": info.get("channel"),
+                    "channel_id": info.get("channel_id"),
+                    "channel_url": info.get("channel_url"),
+                    "webpage_url": info.get("webpage_url"),
+                    "thumbnails": info.get("thumbnails", []),  # 所有缩略图
+                    "thumbnail": info.get("thumbnail"),  # 主缩略图
+                    "resolutions": resolutions,  # 可用分辨率列表
+                    "formats": formats,  # 所有可用格式详情
+                    "preview_video": preview_video,  # 预览视频
+                    "is_live": info.get("is_live", False),  # 是否为直播
+                    "was_live": info.get("was_live", False),  # 是否为直播回放
+                    "live_status": info.get("live_status"),  # 直播状态
+                    "tags": info.get("tags", []),  # 视频标签
+                    "categories": info.get("categories", []),  # 视频分类
+                }
+
+                return result
+
+        except Exception as e:
+            raise Exception(f"获取视频详情失败: {str(e)}")

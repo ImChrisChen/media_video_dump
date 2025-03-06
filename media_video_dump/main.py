@@ -66,6 +66,8 @@ curl --location 'http://localhost:8000/video_list' \
     "proxy": "socks5://127.0.0.1:7890"
 }'
 """
+
+
 @app.post("/video_list")
 async def get_video_list(request: schemas.GetVideoListRequest):
     """获取网址中的视频列表"""
@@ -75,6 +77,22 @@ async def get_video_list(request: schemas.GetVideoListRequest):
             "status": "success",
             "message": "Get video list successfully",
             "data": video_list,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/video_details")
+async def get_video_details(request: schemas.GetVideoDetailsRequest):
+    """获取视频详情信息，包括标题、时长、分辨率、封面和预览视频等"""
+    try:
+        video_details = media_service.get_video_details(
+            request.url, proxy=request.proxy
+        )
+        return {
+            "status": "success",
+            "message": "Get video details successfully",
+            "data": video_details,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
