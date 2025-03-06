@@ -14,6 +14,9 @@ app = FastAPI(
 # 定义下载目录
 DOWNLOAD_DIR = os.path.join(os.path.dirname(__file__), "downloads")
 
+# 确保下载目录存在
+os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+
 # 挂载下载目录为静态文件服务
 app.mount("/downloads", StaticFiles(directory=DOWNLOAD_DIR), name="downloads")
 
@@ -50,6 +53,28 @@ async def download_video(request: schemas.DownloadRequest):
             "status": "success",
             "message": "Video downloaded successfully",
             "data": result,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+"""
+curl --location 'http://localhost:8000/video_list' \
+--header 'Content-Type: application/json' \
+--data '{
+    "url": "https://missav.ws/dm23/ja/siro",
+    "proxy": "socks5://127.0.0.1:7890"
+}'
+"""
+@app.post("/video_list")
+async def get_video_list(request: schemas.GetVideoListRequest):
+    """获取网址中的视频列表"""
+    try:
+        video_list = media_service.get_video_list(request.url, proxy=request.proxy)
+        return {
+            "status": "success",
+            "message": "Get video list successfully",
+            "data": video_list,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

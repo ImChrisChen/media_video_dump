@@ -22,3 +22,10 @@ class GetVideoResolutionsRequest(BaseModel):
 
     url: str
     proxy: Optional[str] = None
+
+
+class GetVideoListRequest(BaseModel):
+    """获取网址中的视频列表的请求模型"""
+
+    url: str
+    proxy: Optional[str] = None

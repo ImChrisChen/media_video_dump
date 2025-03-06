@@ -2,12 +2,12 @@ import json
 import os
 from typing import Dict, Any, List, Optional
 from datetime import datetime
+from urllib.parse import urlparse
 import yt_dlp
 import random
 
 
 class MediaTransferService:
-
     user_agents = [
         # Chrome on Windows
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
@@ -121,6 +121,67 @@ class MediaTransferService:
                 }
         except Exception as e:
             raise Exception(f"Download failed: {str(e)}")
+
+    def get_video_list(
+        self, url: str, proxy: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """获取网址中的视频列表
+
+        Args:
+            url: 网址
+            proxy: 代理地址（可选）
+
+        Returns:
+            包含视频信息的列表，每个视频信息包含标题、时长、缩略图等
+        """
+        try:
+            ydl_opts = {
+                "quiet": False,
+                "no_warnings": False,
+                "extract_flat": True,  # 只提取视频信息，不下载
+                "http_headers": {"User-Agent": random.choice(self.user_agents)},
+            }
+
+            if proxy:
+                ydl_opts["proxy"] = proxy
+
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+
+                # 如果是播放列表
+                if info.get("_type") == "playlist":
+                    videos = info.get("entries", [])
+                else:
+                    # 单个视频
+                    videos = [info]
+
+                domain = urlparse(url).netloc
+                date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                os.makedirs(f"./logs/{domain}/video_list", exist_ok=True)
+                file_name = f"./logs/{domain}/video_list/{date}.json"
+                with open(file_name, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(videos, ensure_ascii=False) + "\n")
+
+                result = []
+                for video in videos:
+                    video_info = {
+                        "id": video.get("id"),
+                        "title": video.get("title"),
+                        "duration": video.get("duration"),
+                        "view_count": video.get("view_count"),
+                        "webpage_url": video.get("webpage_url") or video.get("url"),
+                        "thumbnail": video.get("thumbnail"),
+                        "description": video.get("description"),
+                        "uploader": video.get("uploader"),
+                        "upload_date": video.get("upload_date"),
+                        "webpage_url_domain": video.get("webpage_url_domain"),
+                    }
+                    result.append(video_info)
+
+                return result
+
+        except Exception as e:
+            raise Exception(f"获取视频列表失败: {str(e)}")
 
     def get_resolution_list(self, url: str, proxy: Optional[str] = None) -> List[str]:
         try:
