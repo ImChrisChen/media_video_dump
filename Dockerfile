@@ -5,6 +5,9 @@ WORKDIR /app
 # 安装 poetry
 RUN pip install poetry
 
+# 安装 ffmpeg
+RUN apt-get update && apt-get install -y ffmpeg && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 # 复制项目文件
 COPY pyproject.toml poetry.lock ./
 COPY media_video_dump ./media_video_dump

@@ -21,7 +21,7 @@
 
 1. 克隆仓库：
 ```bash
-git clone https://github.com/ImChrisChen/media-video-dump.git
+git clone git@git.zhizitech.org:chenjian/media_video_dump.git
 cd media-video-dump
 ```
 
@@ -62,6 +62,10 @@ services:
 1. Python 3.12+
 2. Poetry 包管理器
 
+
+开启虚拟环境
+poetry env activate
+
 安装依赖：
 ```bash
 poetry install
@@ -69,5 +73,10 @@ poetry install
 
 启动服务：
 ```bash
-poetry run uvicorn media_video_dump.main:app --reload
+poetry run python media_video_dump/main.py
+```
+
+Swagger文档地址:
+```bash
+http://192.168.0.26:8000/docs
 ```

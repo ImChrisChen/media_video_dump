@@ -62,6 +62,7 @@ class MediaTransferService:
                 total = d.get("total_bytes") or d.get("total_bytes_estimate", 0)
                 if total > 0:
                     percent = (d["downloaded_bytes"] / total) * 100
+                    # 下载进度
                     print("video download percent:", f"{percent:.2f}%")
                 else:
                     print("downloading... (size unknown)")

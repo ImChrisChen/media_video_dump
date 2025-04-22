@@ -1,7 +1,7 @@
 #!/usr/bin/sh
 
-# poetry shell
-poetry shell
+# 开启虚拟环境
+poetry env activate
 
-# run the app
+# 运行脚本
 poetry run python media_video_dump/main.py
