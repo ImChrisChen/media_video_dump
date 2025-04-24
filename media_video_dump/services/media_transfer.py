@@ -109,9 +109,25 @@ class MediaTransferService:
                 info = ydl.extract_info(url, download=True)
                 self._log_download(info, url)
 
+                # 获取下载文件的实际路径
+                filepath = None
+                if info.get("requested_downloads"):
+                    # 新版yt-dlp中获取路径的方式
+                    filepath = info.get("requested_downloads")[0].get("filepath")
+                elif info.get("filepath"):
+                    # 旧版yt-dlp中获取路径的方式
+                    filepath = info.get("filepath")
+                else:
+                    # 如果无法直接获取，尝试构建文件路径
+                    try:
+                        # 使用模板生成可能的文件名
+                        filename = ydl.prepare_filename(info)
+                        filepath = filename
+                    except Exception as e:
+                        print(f"无法获取下载文件路径: {str(e)}")
+
                 return {
                     "title": info.get("title"),
-                    "filepath": info.get("filepath"),
                     "format": info.get("format"),
                     "format_id": info.get("format_id"),
                     "resolution": info.get("resolution"),
@@ -119,6 +135,7 @@ class MediaTransferService:
                     "duration": info.get("duration"),
                     "view_count": info.get("view_count"),
                     "webpage_url": info.get("webpage_url"),
+                    "filepath": filepath,  # 添加文件路径到返回结果
                 }
         except Exception as e:
             raise Exception(f"Download failed: {str(e)}")
